@@ -1,0 +1,21 @@
+{
+    "manifest_version": 3,
+    "name": "The Honey Barrel",
+    "version": "1.0.0",
+    "description": "A basic example extension for wine price comparison.",
+    "action": {
+        "default_popup": "index.html"
+    },
+    "permissions": [
+        "storage",
+        "tabs",
+        "scripting"
+    ],
+    "host_permissions":[
+        "http://*/*",
+        "https://*/*"
+    ],
+    "icons": {
+        "48": "icon.png"
+    }
+}
