@@ -22,6 +22,7 @@ interface ExtendedListingType extends Match {
   scrappedPrice: number;
   scrappedCurrency: string;
   convertedScrapedPrice: number;
+  isSoldOut: boolean;
   cheaper: boolean;
 }
 
@@ -51,6 +52,7 @@ function App() {
                 title: string;
                 price: number;
                 currency: string;
+                isSoldOut: boolean;
               }[] = [];
               // const tags = [
               //   "h1, h2, h3, h4, h5, h6",
@@ -70,6 +72,7 @@ function App() {
                   if (title) {
                     let priceText = "";
                     let currency = "";
+                    let isSoldOut = false;
                     const parent = heading.parentElement;
                     if (parent) {
                       const priceSelectors = [
@@ -98,6 +101,33 @@ function App() {
                           );
                         }
                       }
+                      // If not found in parent, look in siblings of the heading
+                      if (!priceElement) {
+                        const grandParent = parent.parentElement;
+                        if (grandParent) {
+                          priceElement = grandParent.querySelector(
+                            combinedPriceSelector
+                          );
+                        }
+                      }
+
+                      // NEW: If still not found, look in siblings of the parent container
+                      if (!priceElement && parent.parentElement) {
+                        const siblings = Array.from(
+                          parent.parentElement.children
+                        );
+                        for (const sibling of siblings) {
+                          if (sibling !== parent) {
+                            const found = sibling.querySelector(
+                              combinedPriceSelector
+                            );
+                            if (found) {
+                              priceElement = found;
+                              break;
+                            }
+                          }
+                        }
+                      }
 
                       // If still not found, fall back to the original approach
                       if (!priceElement) {
@@ -106,6 +136,40 @@ function App() {
 
                       if (priceElement) {
                         priceText = priceElement.textContent || "";
+                      }
+
+                      // --- SOLD OUT DETECTION ---
+                      // Check for 'sold out' in parent, siblings, or children
+                      const soldOutText = (el: Element) =>
+                        (el &&
+                          el.textContent &&
+                          el.textContent.toLowerCase().includes("sold out")) ||
+                        el.textContent?.toLowerCase().includes("out of stock");
+                      // Check parent
+                      if (soldOutText(parent)) {
+                        isSoldOut = true;
+                      }
+                      // Check siblings
+                      if (!isSoldOut && parent.parentElement) {
+                        const siblings = Array.from(
+                          parent.parentElement.children
+                        );
+                        for (const sibling of siblings) {
+                          if (sibling !== parent && soldOutText(sibling)) {
+                            isSoldOut = true;
+                            break;
+                          }
+                        }
+                      }
+                      // Check children
+                      if (!isSoldOut) {
+                        const children = Array.from(parent.children);
+                        for (const child of children) {
+                          if (soldOutText(child)) {
+                            isSoldOut = true;
+                            break;
+                          }
+                        }
                       }
                     }
                     // Look for currency symbols and numbers
@@ -133,8 +197,8 @@ function App() {
                         price = parseFloat(priceMatch[0].replace(/,/g, ""));
                       }
                     }
-
-                    scrapedWines.push({ title, price, currency });
+                    if (price !== 0 || isSoldOut)
+                      scrapedWines.push({ title, price, currency, isSoldOut });
                   }
                 });
               return scrapedWines;
@@ -211,28 +275,100 @@ function App() {
       const uniqueMatches = new Map<string, Match>();
 
       // Track matches per scraped title to identify multiple matches
-      const matchesPerTitle = new Map<string, number>();
+      // const matchesPerTitle = new Map<string, number>();
 
-      // First pass: count matches per title
-      scrappedInfo.forEach((scrapped) => {
-        let matchCount = 0;
+      // // First pass: count matches per title
+      // scrappedInfo.forEach((scrapped) => {
+      //   let matchCount = 0;
 
-        wineListing.forEach((listing) => {
-          const matchScore = isMatch(listing._source.name, scrapped.title);
-          if (matchScore >= 5) {
-            matchCount++;
-          }
-        });
+      //   wineListing.forEach((listing) => {
+      //     const matchScore = isMatch(listing._source.name, scrapped.title);
+      //     if (matchScore >= 5) {
+      //       matchCount++;
+      //     }
+      //   });
 
-        matchesPerTitle.set(scrapped.title, matchCount);
-      });
+      //   matchesPerTitle.set(scrapped.title, matchCount);
+      // });
 
       // Second pass: apply price comparison logic for titles with multiple matches
-      scrappedInfo.forEach((scrapped) => {
-        wineListing.forEach((listing) => {
-          const matchScore = isMatch(listing._source.name, scrapped.title);
+      // Create a Set to track which scraped titles we've already matched
+      const matchedTitles = new Set<string>();
 
-          if (matchScore >= 5) {
+      scrappedInfo.forEach((scrapped) => {
+        // If the bottle is sold out, always recommend our listing
+        if (scrapped.isSoldOut) {
+          // Find the best match in your wineListing for this title
+          const bestMatch = wineListing.find(
+            (listing) => isMatch(listing._source.name, scrapped.title) >= 5
+          );
+          if (bestMatch) {
+            const enhancedListing: ExtendedListingType = {
+              ...bestMatch,
+              scrappedPrice: scrapped.price || 0,
+              scrappedCurrency: scrapped.currency || "",
+              convertedScrapedPrice: 0,
+              isSoldOut: scrapped.isSoldOut,
+              cheaper: true,
+            };
+            uniqueMatches.set(bestMatch._id, enhancedListing);
+          }
+          return; // Skip normal price comparison for sold out
+        }
+        // Skip if we've already found a match for this scraped title
+        if (matchedTitles.has(scrapped.title)) {
+          return;
+        }
+        // If the bottle is sold out, handle it specially
+        if (scrapped.isSoldOut) {
+          // Find the best match in your wineListing for this title
+          const bestMatch = wineListing.find(
+            (listing) => isMatch(listing._source.name, scrapped.title) >= 5
+          );
+
+          if (bestMatch) {
+            // For sold out items, we'll set values that work with the existing PriceComparison component
+            const enhancedListing: ExtendedListingType = {
+              ...bestMatch,
+              scrappedPrice: 0,
+              scrappedCurrency: scrapped.currency || "$",
+              convertedScrapedPrice: bestMatch._source.price * 2,
+              isSoldOut: scrapped.isSoldOut,
+              cheaper: true,
+            };
+
+            uniqueMatches.set(bestMatch._id, enhancedListing);
+            matchedTitles.add(scrapped.title);
+
+            console.log(
+              `Found sold out item: ${scrapped.title}, recommending our listing`
+            );
+            return; // Skip normal price comparison for sold out items
+          }
+        }
+
+        // Flag to track if we've found a match for this scraped title
+        let foundMatchForTitle = false;
+
+        // Sort wineListing to ensure consistent order (optional)
+        // This ensures the "first" match is always the same if run multiple times
+        // const sortedWineListing = [...wineListing].sort((a, b) => a._id.localeCompare(b._id));
+
+        for (const listing of wineListing) {
+          let matchScore = 0;
+          if (
+            scrapped.title !== " " &&
+            scrapped.title !== "" &&
+            scrapped.price !== 0 &&
+            scrapped.currency !== ""
+          ) {
+            matchScore = isMatch(listing._source.name, scrapped.title);
+          }
+
+          if (matchScore >= 5 && !foundMatchForTitle) {
+            // We found the first match for this scraped title
+            foundMatchForTitle = true;
+            matchedTitles.add(scrapped.title);
             // Convert price based on currency if needed
             let convertedPrice =
               scrapped.currency && scrapped.price ? scrapped.price : 0;
@@ -274,8 +410,9 @@ function App() {
             };
 
             uniqueMatches.set(listing._id, enhancedListing);
+            break;
           }
-        });
+        }
       });
 
       const matchesArray = Array.from(uniqueMatches.values());
@@ -299,27 +436,31 @@ function App() {
 
   return (
     <div className="w-[400px] min-h-[500px] bg-gradient-to-b from-gray-50 to-white">
-      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-gray-100">
-        <div className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">BAXUS Price Checker</h1>
-              <p className="text-sm text-gray-500">Find better deals on BAXUS</p>
-            </div>
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-gray-200">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <img
+            src="/icon.png"
+            alt="BAXUS Icon"
+            className="w-10 h-10 rounded-lg shadow-md border border-blue-100 bg-white"
+          />
+          <div>
+            <h1 className="text-xl font-extrabold text-blue-700 tracking-tight leading-tight drop-shadow-sm">
+              BAXUS Price Checker
+            </h1>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">
+              Find better deals on BAXUS
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 mt-2">
         {loading && (
           <div className="flex flex-col items-center justify-center py-8">
             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-sm text-gray-500">Searching for better deals...</p>
+            <p className="text-sm text-gray-500">
+              Searching for better deals...
+            </p>
           </div>
         )}
 
@@ -327,8 +468,18 @@ function App() {
           <div className="p-4 bg-red-50 rounded-lg border border-red-100">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0">
-                <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-red-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <div>
@@ -342,11 +493,23 @@ function App() {
         {!loading && !error && matches.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-8 h-8 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No Better Deals Found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">
+              No Better Deals Found
+            </h3>
             <p className="text-sm text-gray-500 text-center">
               We couldn't find any better prices on BAXUS for this item.
             </p>
@@ -356,10 +519,22 @@ function App() {
         {!loading && !error && matches.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-gray-900">Found {matches.length} Better Deals</h2>
+              <h2 className="text-sm font-medium text-gray-900">
+                Found {matches.length} Better Deals
+              </h2>
               <div className="flex items-center gap-2 text-sm text-gray-500">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                  />
                 </svg>
                 <span>Sorted by best savings</span>
               </div>
