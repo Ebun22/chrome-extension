@@ -18,6 +18,13 @@ interface Match {
   };
 }
 
+interface ExtendedListingType extends Match {
+  scrappedPrice: number;
+  scrappedCurrency: string;
+  convertedScrapedPrice: number;
+  cheaper: boolean;
+}
+
 // Add Chrome extension types
 declare global {
   interface Window {
@@ -30,7 +37,6 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [wineListing, setWineListing] = useState<Match[]>([]);
-  const [cheaperMatches, _setCheaperMatches] = useState<Match[]>([]);
   const [scrappedInfo, setScrappedInfo] = useState<any[]>([]);
 
   useEffect(() => {
@@ -41,66 +47,97 @@ function App() {
           .executeScript({
             target: { tabId: tab[0].id! },
             func: () => {
-              const scrapedWines: { title: string; price: number }[] = [];
-  
-              // Function to process a heading element
-              const processHeading = (heading: Element) => {
-                // Check if heading has span tags and use their text if available
-                const spanInsideHeading = heading.querySelector('span');
-                let title = spanInsideHeading ? spanInsideHeading.textContent?.trim() : heading.textContent?.trim();
-                
-                if (title) {
-                  let priceText = "";
-                  const parent = heading.parentElement;
-                  if (parent) {
-                    const priceElement = parent.querySelector("span, p");
-                    if (priceElement) {
-                      priceText = priceElement.textContent || "";
+              const scrapedWines: {
+                title: string;
+                price: number;
+                currency: string;
+              }[] = [];
+              // const tags = [
+              //   "h1, h2, h3, h4, h5, h6",
+              //   "div > h1, div > h2, div > h3, div > h4, div > h5, div > h6",
+              //   "div > div > h1, div > div > h2, div > div > h3, div > div > h4, div > div > h5, div > div > h6",
+              //   "div > span, div > div > span"
+              // ]
+              // tags.forEach((tag) => {
+
+              // })
+              document
+                .querySelectorAll(
+                  "h1, h2, h3, h4, h5, h6, div > h1, div > h2, div > h3, div > h4, div > h5, [class*='price'], [id*='price'], div > span, div > div > span"
+                )
+                .forEach((heading) => {
+                  const title = heading.textContent?.trim();
+                  if (title) {
+                    let priceText = "";
+                    let currency = "";
+                    const parent = heading.parentElement;
+                    if (parent) {
+                      const priceSelectors = [
+                        '[class*="price"]',
+                        '[id*="price"]',
+                        ".price",
+                        "#price",
+                        '[class*="Price"]',
+                        '[id*="Price"]',
+                      ];
+
+                      // Join all selectors with commas
+                      const combinedPriceSelector = priceSelectors.join(", ");
+
+                      // Look in the parent and its children for price elements
+                      let priceElement = parent.querySelector(
+                        combinedPriceSelector
+                      );
+
+                      // If not found in parent, look in siblings of the heading
+                      if (!priceElement) {
+                        const grandParent = parent.parentElement;
+                        if (grandParent) {
+                          priceElement = grandParent.querySelector(
+                            combinedPriceSelector
+                          );
+                        }
+                      }
+
+                      // If still not found, fall back to the original approach
+                      if (!priceElement) {
+                        priceElement = parent.querySelector("span, p");
+                      }
+
+                      if (priceElement) {
+                        priceText = priceElement.textContent || "";
+                      }
                     }
-                  }
-                  const priceMatch = priceText.match(/[\d,.]+/);
-                  const price = priceMatch
-                    ? parseFloat(priceMatch[0].replace(",", ""))
-                    : 0;
-                  scrapedWines.push({ title, price });
-                }
-              };
-              
-              // Process all direct h1-h6 tags
-              document.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach(processHeading);
-              
-              // Process h tags inside divs (first level)
-              document.querySelectorAll("div > h1, div > h2, div > h3, div > h4, div > h5, div > h6").forEach(processHeading);
-              
-              // Process h tags inside divs inside divs (second level)
-              document.querySelectorAll("div > div > h1, div > div > h2, div > div > h3, div > div > h4, div > div > h5, div > div > h6").forEach(processHeading);
-              
-              // Process span tags that might contain wine information but aren't in headings
-              document.querySelectorAll("div > span, div > div > span").forEach((span) => {
-                const title = span.textContent?.trim();
-                if (title && title.length > 10) { // Assuming wine titles are reasonably long
-                  let priceText = "";
-                  const parent = span.parentElement;
-                  if (parent) {
-                    const priceElement = parent.querySelector("span:not(:contains('" + title + "')), p");
-                    if (priceElement) {
-                      priceText = priceElement.textContent || "";
+                    // Look for currency symbols and numbers
+                    const currencyRegex =
+                      /([£$€₦])\s*([0-9,.]+)|([0-9,.]+)\s*([£$€₦])/;
+                    const currencyMatch = priceText.match(currencyRegex);
+
+                    let price = 0;
+
+                    if (currencyMatch) {
+                      // If currency symbol is before the number
+                      if (currencyMatch[1] && currencyMatch[2]) {
+                        currency = currencyMatch[1];
+                        price = parseFloat(currencyMatch[2].replace(/,/g, ""));
+                      }
+                      // If currency symbol is after the number
+                      else if (currencyMatch[3] && currencyMatch[4]) {
+                        currency = currencyMatch[4];
+                        price = parseFloat(currencyMatch[3].replace(/,/g, ""));
+                      }
+                    } else {
+                      // Fallback to just looking for numbers if no currency symbol is found
+                      const priceMatch = priceText.match(/([0-9,.]+)/);
+                      if (priceMatch) {
+                        price = parseFloat(priceMatch[0].replace(/,/g, ""));
+                      }
                     }
+
+                    scrapedWines.push({ title, price, currency });
                   }
-                  const priceMatch = priceText.match(/[\d,.]+/);
-                  const price = priceMatch
-                    ? parseFloat(priceMatch[0].replace(",", ""))
-                    : 0;
-                  scrapedWines.push({ title, price });
-                }
-              });
-              
-              // Remove duplicates based on title
-              const uniqueWines = Array.from(
-                new Map(scrapedWines.map(wine => [wine.title, wine])).values()
-              );
-              
-              return uniqueWines;
+                });
+              return scrapedWines;
             },
           })
           .then((injectionResults) => {
@@ -110,6 +147,8 @@ function App() {
           });
       }
     });
+
+    console.log("This is scrapped Info state: ", scrappedInfo);
 
     // Fetch BAXUS listings
     const fetchData = async () => {
@@ -139,6 +178,10 @@ function App() {
     fetchData();
   }, []);
 
+  // useEffect(() => {
+  //   console.log("This is scrapped Info state: ", scrappedInfo);
+  // }, [])
+
   // Find cheaper matches when both current wine and matches are available
   useEffect(() => {
     const filterTitle = (title: string) => {
@@ -152,37 +195,102 @@ function App() {
     const isMatch = (wineName: string, scrappedTitle: string) => {
       const filteredWineName = filterTitle(wineName);
       const filteredScrappedTitle = filterTitle(scrappedTitle);
-      console.log("This is filtered scrapped Info: ", filteredScrappedTitle);
-      
+
       let matchCount = 0;
-      
+
       for (const word of filteredWineName) {
         if (filteredScrappedTitle.includes(word)) {
           matchCount++;
         }
       }
-      
-      console.log("This is word count ", matchCount);
+
       return matchCount;
     };
-    console.log("This is scrapped Info state: ", scrappedInfo);
 
     if (scrappedInfo.length > 0) {
-      const uniqueMatches = new Map<string, Match>()
+      const uniqueMatches = new Map<string, Match>();
 
+      // Track matches per scraped title to identify multiple matches
+      const matchesPerTitle = new Map<string, number>();
+
+      // First pass: count matches per title
+      scrappedInfo.forEach((scrapped) => {
+        let matchCount = 0;
+
+        wineListing.forEach((listing) => {
+          const matchScore = isMatch(listing._source.name, scrapped.title);
+          if (matchScore >= 5) {
+            matchCount++;
+          }
+        });
+
+        matchesPerTitle.set(scrapped.title, matchCount);
+      });
+
+      // Second pass: apply price comparison logic for titles with multiple matches
       scrappedInfo.forEach((scrapped) => {
         wineListing.forEach((listing) => {
-           const matchFound = isMatch(listing._source.name, scrapped.title);
-           if (matchFound  >= 5) {
-            uniqueMatches.set(listing._id, listing)
+          const matchScore = isMatch(listing._source.name, scrapped.title);
+
+          if (matchScore >= 5) {
+            // Convert price based on currency if needed
+            let convertedPrice =
+              scrapped.currency && scrapped.price ? scrapped.price : 0;
+
+            // Only convert if we have a currency and price
+            if (scrapped.currency && scrapped.price) {
+              // Convert Naira to USD
+              if (scrapped.currency === "₦" || scrapped.currency === "NGN") {
+                convertedPrice = scrapped.price / 1602;
+              } else if (
+                scrapped.currency === "€" ||
+                scrapped.currency === "EUR"
+              ) {
+                convertedPrice = scrapped.price * 1.14;
+              } else if (
+                scrapped.currency === "£" ||
+                scrapped.currency === "GBP"
+              ) {
+                convertedPrice = scrapped.price * 1.31;
+              }
+            }
+
+            // Get the listing price (assuming it's in USD)
+            const listingPrice = listing._source.price || 0;
+            console.log(
+              "This is the listing price: ",
+              listingPrice,
+              " this convertedPrice: ",
+              convertedPrice
+            );
+            const isCheaper = listingPrice < convertedPrice;
+
+            const enhancedListing: ExtendedListingType = {
+              ...listing,
+              scrappedPrice: scrapped.price || 0,
+              scrappedCurrency: scrapped.currency || "",
+              convertedScrapedPrice: convertedPrice,
+              cheaper: isCheaper,
+            };
+
+            uniqueMatches.set(listing._id, enhancedListing);
           }
-          // console.log("Checking match:", listing._source.name, "<->", scrapped.title);
         });
       });
-      
-      setMatches(Array.from(uniqueMatches.values()));
-    }
 
+      const matchesArray = Array.from(uniqueMatches.values());
+      console.log("This is the array that matches: ", matchesArray);
+      // Only update with matches if we found any
+      if (matchesArray.length > 0) {
+        setMatches(matchesArray);
+        console.log(
+          `Found ${matchesArray.length} matches with price comparison`
+        );
+      } else {
+        setMatches([]);
+        console.log("No matches found after price comparison");
+      }
+    }
   }, [scrappedInfo, wineListing]);
 
   useEffect(() => {
@@ -190,41 +298,78 @@ function App() {
   }, [matches]);
 
   return (
-    <div className="w-[300px] font-sans">
-      <h1 className="p-4 text-lg font-bold mb-4">BAXUS Price Checker</h1>
-
-      {loading && <div className="p-4 text-sm text-gray-500">Loading...</div>}
-
-      {error && <div className="p-4 text-sm text-red-500">{error}</div>}
-
-      {/* {matches && (
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-sm font-medium text-gray-900 mb-2">
-            Current Wine
-          </h2>
-          <p className="text-sm text-gray-700">{matches._source.name}</p>
-          <p className="text-sm font-semibold text-gray-900">
-            ${matches.price}
-          </p>
-        </div>
-      )}
-
-      {!loading && !error && cheaperMatches.length === 0 && currentWine && (
-        <p className="p-4 text-sm text-gray-500">
-          No cheaper matches found on BAXUS.
-        </p>
-      )} */}
-
-      {!loading && !error && cheaperMatches.length > 0 && (
+    <div className="w-[400px] min-h-[500px] bg-gradient-to-b from-gray-50 to-white">
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-gray-100">
         <div className="p-4">
-          <h2 className="text-sm font-medium text-gray-900 mb-2">
-            Cheaper on BAXUS
-          </h2>
-          {cheaperMatches.map((match, index) => (
-            <PriceComparison key={index} bottle={match._source} />
-          ))}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900">BAXUS Price Checker</h1>
+              <p className="text-sm text-gray-500">Find better deals on BAXUS</p>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-sm text-gray-500">Searching for better deals...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && matches.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">No Better Deals Found</h3>
+            <p className="text-sm text-gray-500 text-center">
+              We couldn't find any better prices on BAXUS for this item.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && matches.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-gray-900">Found {matches.length} Better Deals</h2>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <span>Sorted by best savings</span>
+              </div>
+            </div>
+            {matches.map((match, index) => (
+              <PriceComparison key={index} bottle={match} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
