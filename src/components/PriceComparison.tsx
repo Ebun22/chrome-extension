@@ -1,14 +1,18 @@
 // import { BottleProps } from "../utils/types";
 import { useState } from "react";
 
+const formatPrice = (value: number, currency: string = "$") => {
+  return `${currency}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 const PriceComparison = ({ bottle }: any) => {
   const [isLoading, setIsLoading] = useState(true);
-  const savings = bottle.convertedScrapedPrice - bottle._source.price;
+  const savings = bottle.isSoldOut ? bottle._source.price : bottle.convertedScrapedPrice - bottle._source.price;
   const savingsPercentage = (
-    (savings / bottle.convertedScrapedPrice) *
+    (savings / (bottle.isSoldOut ? bottle._source.price : bottle.convertedScrapedPrice)) *
     100
   ).toFixed(1);
-  const isNegative = savings < 0;
+  const isNegative = !bottle.isSoldOut && savings < 0;
 
   return (
     <div className="flex flex-col bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 mb-4 border border-gray-100">
@@ -40,19 +44,19 @@ const PriceComparison = ({ bottle }: any) => {
             />
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-gray-900 mb-2 line-clamp-2">
+        <div className="flex-1 min-w-0 p-3">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2 line-clamp-2">
             {bottle._source.name}
           </h2>
 
           <div className="space-y-2">
             <div className="flex items-baseline gap-2">
-              <span className="text-sm text-gray-500">Current Price:</span>
+              <span className="text-sm text-gray-500">Current site price:</span>
               {bottle.isSoldOut ? (
                 <span className="text-lg font-bold text-red-600">Sold Out</span>
               ) : (
                 <span className="text-lg font-bold text-gray-900">
-                  {bottle.scrappedCurrency} {bottle.scrappedPrice}
+                  {formatPrice(bottle.scrappedPrice, bottle.scrappedCurrency)}
                 </span>
               )}
             </div>
@@ -60,7 +64,7 @@ const PriceComparison = ({ bottle }: any) => {
             <div className="flex items-baseline gap-2">
               <span className="text-sm text-gray-500">BAXUS Price:</span>
               <span className="text-lg font-bold text-green-600">
-                ${bottle._source.price}
+                {formatPrice(bottle._source.price)}
               </span>
             </div>
 
@@ -71,7 +75,10 @@ const PriceComparison = ({ bottle }: any) => {
                   isNegative ? "text-red-600" : "text-green-600"
                 }`}
               >
-                {isNegative ? `-$${Math.abs(savings)}` : `$${savings}`} (
+                {isNegative
+                  ? `-${formatPrice(Math.abs(savings))}`
+                  : `${formatPrice(savings)}`}
+                (
                 {isNegative ? "-" : ""}
                 {Math.abs(Number(savingsPercentage))}%)
               </span>

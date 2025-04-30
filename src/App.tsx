@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import PriceComparison from "./components/PriceComparison";
-
-// interface _WineInfo {
-//   name: string;
-//   price: number;
-// }
+import apiService from "./services/api";
+import { filterTitle } from "./content";
+import { scrapeWineData } from "./utils/scraper";
 
 interface Match {
   _id: string;
@@ -41,290 +39,128 @@ function App() {
   const [scrappedInfo, setScrappedInfo] = useState<any[]>([]);
 
   useEffect(() => {
-    // Get current page wine info
-    chrome.tabs.query({ active: true, currentWindow: true }, (tab) => {
-      if (tab[0]?.id) {
-        chrome.scripting
-          .executeScript({
-            target: { tabId: tab[0].id! },
-            func: () => {
-              const scrapedWines: {
-                title: string;
-                price: number;
-                currency: string;
-                isSoldOut: boolean;
-              }[] = [];
-              // const tags = [
-              //   "h1, h2, h3, h4, h5, h6",
-              //   "div > h1, div > h2, div > h3, div > h4, div > h5, div > h6",
-              //   "div > div > h1, div > div > h2, div > div > h3, div > div > h4, div > div > h5, div > div > h6",
-              //   "div > span, div > div > span"
-              // ]
-              // tags.forEach((tag) => {
+    let isMounted = true;
 
-              // })
-              document
-                .querySelectorAll(
-                  "h1, h2, h3, h4, h5, h6, div > h1, div > h2, div > h3, div > h4, div > h5, [class*='price'], [id*='price'], div > span, div > div > span"
-                )
-                .forEach((heading) => {
-                  const title = heading.textContent?.trim();
-                  if (title) {
-                    let priceText = "";
-                    let currency = "";
-                    let isSoldOut = false;
-                    const parent = heading.parentElement;
-                    if (parent) {
-                      const priceSelectors = [
-                        '[class*="price"]',
-                        '[id*="price"]',
-                        ".price",
-                        "#price",
-                        '[class*="Price"]',
-                        '[id*="Price"]',
-                      ];
-
-                      // Join all selectors with commas
-                      const combinedPriceSelector = priceSelectors.join(", ");
-
-                      // Look in the parent and its children for price elements
-                      let priceElement = parent.querySelector(
-                        combinedPriceSelector
-                      );
-
-                      // If not found in parent, look in siblings of the heading
-                      if (!priceElement) {
-                        const grandParent = parent.parentElement;
-                        if (grandParent) {
-                          priceElement = grandParent.querySelector(
-                            combinedPriceSelector
-                          );
-                        }
-                      }
-                      // If not found in parent, look in siblings of the heading
-                      if (!priceElement) {
-                        const grandParent = parent.parentElement;
-                        if (grandParent) {
-                          priceElement = grandParent.querySelector(
-                            combinedPriceSelector
-                          );
-                        }
-                      }
-
-                      // NEW: If still not found, look in siblings of the parent container
-                      if (!priceElement && parent.parentElement) {
-                        const siblings = Array.from(
-                          parent.parentElement.children
-                        );
-                        for (const sibling of siblings) {
-                          if (sibling !== parent) {
-                            const found = sibling.querySelector(
-                              combinedPriceSelector
-                            );
-                            if (found) {
-                              priceElement = found;
-                              break;
-                            }
-                          }
-                        }
-                      }
-
-                      // If still not found, fall back to the original approach
-                      if (!priceElement) {
-                        priceElement = parent.querySelector("span, p");
-                      }
-
-                      if (priceElement) {
-                        priceText = priceElement.textContent || "";
-                      }
-
-                      // --- SOLD OUT DETECTION ---
-                      // Check for 'sold out' in parent, siblings, or children
-                      const soldOutText = (el: Element) =>
-                        (el &&
-                          el.textContent &&
-                          el.textContent.toLowerCase().includes("sold out")) ||
-                        el.textContent?.toLowerCase().includes("out of stock");
-                      // Check parent
-                      if (soldOutText(parent)) {
-                        isSoldOut = true;
-                      }
-                      // Check siblings
-                      if (!isSoldOut && parent.parentElement) {
-                        const siblings = Array.from(
-                          parent.parentElement.children
-                        );
-                        for (const sibling of siblings) {
-                          if (sibling !== parent && soldOutText(sibling)) {
-                            isSoldOut = true;
-                            break;
-                          }
-                        }
-                      }
-                      // Check children
-                      if (!isSoldOut) {
-                        const children = Array.from(parent.children);
-                        for (const child of children) {
-                          if (soldOutText(child)) {
-                            isSoldOut = true;
-                            break;
-                          }
-                        }
-                      }
-                    }
-                    // Look for currency symbols and numbers
-                    const currencyRegex =
-                      /([£$€₦])\s*([0-9,.]+)|([0-9,.]+)\s*([£$€₦])/;
-                    const currencyMatch = priceText.match(currencyRegex);
-
-                    let price = 0;
-
-                    if (currencyMatch) {
-                      // If currency symbol is before the number
-                      if (currencyMatch[1] && currencyMatch[2]) {
-                        currency = currencyMatch[1];
-                        price = parseFloat(currencyMatch[2].replace(/,/g, ""));
-                      }
-                      // If currency symbol is after the number
-                      else if (currencyMatch[3] && currencyMatch[4]) {
-                        currency = currencyMatch[4];
-                        price = parseFloat(currencyMatch[3].replace(/,/g, ""));
-                      }
-                    } else {
-                      // Fallback to just looking for numbers if no currency symbol is found
-                      const priceMatch = priceText.match(/([0-9,.]+)/);
-                      if (priceMatch) {
-                        price = parseFloat(priceMatch[0].replace(/,/g, ""));
-                      }
-                    }
-                    if (price !== 0 || isSoldOut)
-                      scrapedWines.push({ title, price, currency, isSoldOut });
-                  }
-                });
-              return scrapedWines;
-            },
-          })
-          .then((injectionResults) => {
-            const result = injectionResults[0].result;
-            console.log("Scraped wines: ", result);
-            setScrappedInfo(result ?? []);
-          });
-      }
-    });
-
-    console.log("This is scrapped Info state: ", scrappedInfo);
-
-    // Fetch BAXUS listings
     const fetchData = async () => {
       try {
-        const response = await fetch(
-          "https://services.baxus.co/api/search/listings?from=0&size=20&listed=true"
-        );
+        setLoading(true);
+        setError(null);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch data");
-        }
-        const data = await response.json();
-        if (data) {
-          setWineListing(data);
-        } else {
-          setWineListing([]);
+        // Fetch BAXUS listings with authentication and rate limiting
+        const data = await apiService.fetchListings({ from: 0, size: 20 });
+
+        if (isMounted) {
+          if (data) {
+            setWineListing(data);
+          } else {
+            setWineListing([]);
+          }
         }
       } catch (err) {
         console.error("Error fetching data:", err);
-        setError("Failed to load data. Please try again later.");
-        setWineListing([]);
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError("Failed to load data. Please try again later.");
+          }
+          setWineListing([]);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchData();
-  }, []);
+    // Get current page wine info with rate limiting
+    const scrapePageData = async () => {
+      try {
+        if (!chrome?.tabs) {
+          throw new Error("Chrome API not available");
+        }
 
-  // useEffect(() => {
-  //   console.log("This is scrapped Info state: ", scrappedInfo);
-  // }, [])
+        const tabs = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        if (!tabs[0]?.id) {
+          throw new Error("No active tab found");
+        }
+
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          func: scrapeWineData,
+        });
+
+        if (isMounted && results?.[0]?.result) {
+          setScrappedInfo(results[0].result);
+        }
+      } catch (err) {
+        console.error("Error scraping page:", err);
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError("Failed to analyze the current page. Please try again.");
+          }
+        }
+      }
+    };
+
+    scrapePageData();
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Find cheaper matches when both current wine and matches are available
   useEffect(() => {
-    const filterTitle = (title: string) => {
-      return title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/gi, "")
-        .split(/\s+/)
-        .filter((word) => word.length > 1);
-    };
+    
+
+    console.log("This is scrapepd info ", scrappedInfo);
 
     const isMatch = (wineName: string, scrappedTitle: string) => {
       const filteredWineName = filterTitle(wineName);
       const filteredScrappedTitle = filterTitle(scrappedTitle);
 
       let matchCount = 0;
-
+      
       for (const word of filteredWineName) {
         if (filteredScrappedTitle.includes(word)) {
+          console.log("This is match count: ", word, filteredWineName, filteredScrappedTitle);
           matchCount++;
         }
       }
-
+      console.log("This is match count: ", matchCount);
       return matchCount;
     };
 
     if (scrappedInfo.length > 0) {
       const uniqueMatches = new Map<string, Match>();
 
-      // Track matches per scraped title to identify multiple matches
-      // const matchesPerTitle = new Map<string, number>();
-
-      // // First pass: count matches per title
-      // scrappedInfo.forEach((scrapped) => {
-      //   let matchCount = 0;
-
-      //   wineListing.forEach((listing) => {
-      //     const matchScore = isMatch(listing._source.name, scrapped.title);
-      //     if (matchScore >= 5) {
-      //       matchCount++;
-      //     }
-      //   });
-
-      //   matchesPerTitle.set(scrapped.title, matchCount);
-      // });
-
-      // Second pass: apply price comparison logic for titles with multiple matches
       // Create a Set to track which scraped titles we've already matched
       const matchedTitles = new Set<string>();
 
       scrappedInfo.forEach((scrapped) => {
-        // If the bottle is sold out, always recommend our listing
-        if (scrapped.isSoldOut) {
-          // Find the best match in your wineListing for this title
-          const bestMatch = wineListing.find(
-            (listing) => isMatch(listing._source.name, scrapped.title) >= 5
-          );
-          if (bestMatch) {
-            const enhancedListing: ExtendedListingType = {
-              ...bestMatch,
-              scrappedPrice: scrapped.price || 0,
-              scrappedCurrency: scrapped.currency || "",
-              convertedScrapedPrice: 0,
-              isSoldOut: scrapped.isSoldOut,
-              cheaper: true,
-            };
-            uniqueMatches.set(bestMatch._id, enhancedListing);
-          }
-          return; // Skip normal price comparison for sold out
-        }
         // Skip if we've already found a match for this scraped title
         if (matchedTitles.has(scrapped.title)) {
           return;
         }
+
         // If the bottle is sold out, handle it specially
         if (scrapped.isSoldOut) {
           // Find the best match in your wineListing for this title
           const bestMatch = wineListing.find(
-            (listing) => isMatch(listing._source.name, scrapped.title) >= 5
+            (listing) => {
+              const filteredWineName = filterTitle(listing._source.name);
+              const threshold = (filteredWineName.length <= 5) ? 3 : 5;
+              return isMatch(listing._source.name, scrapped.title) >= threshold
+            }
           );
+       
 
           if (bestMatch) {
             // For sold out items, we'll set values that work with the existing PriceComparison component
@@ -332,8 +168,8 @@ function App() {
               ...bestMatch,
               scrappedPrice: 0,
               scrappedCurrency: scrapped.currency || "$",
-              convertedScrapedPrice: bestMatch._source.price * 2,
-              isSoldOut: scrapped.isSoldOut,
+              convertedScrapedPrice: bestMatch._source.price * 2, // This will result in 100% savings
+              isSoldOut: true,
               cheaper: true,
             };
 
@@ -350,10 +186,6 @@ function App() {
         // Flag to track if we've found a match for this scraped title
         let foundMatchForTitle = false;
 
-        // Sort wineListing to ensure consistent order (optional)
-        // This ensures the "first" match is always the same if run multiple times
-        // const sortedWineListing = [...wineListing].sort((a, b) => a._id.localeCompare(b._id));
-
         for (const listing of wineListing) {
           let matchScore = 0;
           if (
@@ -365,7 +197,11 @@ function App() {
             matchScore = isMatch(listing._source.name, scrapped.title);
           }
 
-          if (matchScore >= 5 && !foundMatchForTitle) {
+          // Determine threshold based on filteredWineName length
+          const filteredWineName = filterTitle(listing._source.name);
+          const threshold = (filteredWineName.length <= 5) ? 3 : 5;
+
+          if (matchScore >= threshold && !foundMatchForTitle) {
             // We found the first match for this scraped title
             foundMatchForTitle = true;
             matchedTitles.add(scrapped.title);
@@ -406,6 +242,7 @@ function App() {
               scrappedPrice: scrapped.price || 0,
               scrappedCurrency: scrapped.currency || "",
               convertedScrapedPrice: convertedPrice,
+              isSoldOut: scrapped.isSoldOut,
               cheaper: isCheaper,
             };
 
@@ -436,20 +273,16 @@ function App() {
 
   return (
     <div className="w-[400px] min-h-[500px] bg-gradient-to-b from-gray-50 to-white">
-      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-gray-200">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <img
-            src="/icon.png"
-            alt="BAXUS Icon"
-            className="w-10 h-10 rounded-lg shadow-md border border-blue-100 bg-white"
-          />
+      <div className="bg-white/90 backdrop-blur-md border-b border-gray-200">
+        <div className="flex items-center justify-center gap-3 px-4 py-3">
+          <img src="/icon.png" alt="BAXUS Icon" className="w-16 h-16 " />
           <div>
-            <h1 className="text-xl font-extrabold text-blue-700 tracking-tight leading-tight drop-shadow-sm">
+            <h1 className="text-3xl font-extrabold tracking-tight leading-tight drop-shadow-sm">
               BAXUS Price Checker
             </h1>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">
+            {/* <p className="text-xs text-gray-500 font-medium mt-0.5">
               Find better deals on BAXUS
-            </p>
+            </p> */}
           </div>
         </div>
       </div>

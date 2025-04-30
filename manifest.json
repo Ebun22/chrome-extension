@@ -1,18 +1,26 @@
 {
   "manifest_version": 3,
   "name": "BAXUS Price Checker",
-  "version": "1.0",
-  "description": "Compare wine prices with BAXUS marketplace",
+  "version": "1.0.0",
+  "description": "Compare prices with BAXUS listings",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
+  "host_permissions": [
+    "https://services.baxus.co/*"
+  ],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
   "action": {
     "default_popup": "index.html",
     "default_icon": {
-      "16": "public/icon16.png",
-      "48": "public/icon48.png",
-      "128": "public/icon128.png"
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
     }
   },
   "content_scripts": [
@@ -22,8 +30,8 @@
     }
   ],
   "icons": {
-    "16": "public/icon16.png",
-    "48": "public/icon48.png",
-    "128": "public/icon128.png"
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
   }
 } 
