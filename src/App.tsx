@@ -118,7 +118,6 @@ function App() {
 
   // Find cheaper matches when both current wine and matches are available
   useEffect(() => {
-    
 
     console.log("This is scrapepd info ", scrappedInfo);
 
@@ -272,26 +271,23 @@ function App() {
   }, [matches]);
 
   return (
-    <div className="w-[400px] min-h-[500px] bg-gradient-to-b from-gray-50 to-white">
-      <div className="bg-white/90 backdrop-blur-md border-b border-gray-200">
-        <div className="flex items-center justify-center gap-3 px-4 py-3">
-          <img src="/icon.png" alt="BAXUS Icon" className="w-16 h-16 " />
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight leading-tight drop-shadow-sm">
+    <div className="w-[400px] min-h-[500px] bg-[#f8f6f1]">
+      <div className="bg-[#f8f6f1] backdrop-blur-md border-b border-[#be6d0f]/20">
+        <div className="flex flex-col items-center justify-center gap-3 px-4">
+          <img src="/icon.png" alt="BAXUS Icon" className="w-16 h-16 spin-slow mt-3" />
+          <div className="text-container w-full flex flex-col items-center">
+            <p className="whiskey-title text-3xl font-extrabold tracking-tight leading-tight drop-shadow-sm">
               BAXUS Price Checker
-            </h1>
-            {/* <p className="text-xs text-gray-500 font-medium mt-0.5">
-              Find better deals on BAXUS
-            </p> */}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="space-y-4 mt-2">
+      <div className="space-y-4 p-4">
         {loading && (
           <div className="flex flex-col items-center justify-center py-8">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-sm text-gray-500">
+            <div className="w-12 h-12 border-4 border-[#be6d0f] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="whiskey-text text-sm text-[#be6d0f]">
               Searching for better deals...
             </p>
           </div>
@@ -316,8 +312,8 @@ function App() {
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <p className="text-sm text-red-600 mt-1">{error}</p>
+                <h3 className="whiskey-title text-sm font-medium text-red-800">Error</h3>
+                <p className="whiskey-text text-sm text-red-600 mt-1">{error}</p>
               </div>
             </div>
           </div>
@@ -325,9 +321,9 @@ function App() {
 
         {!loading && !error && matches.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-[#be6d0f]/10 rounded-full flex items-center justify-center mb-4">
               <svg
-                className="w-8 h-8 text-gray-400"
+                className="w-8 h-8 text-[#be6d0f]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -340,41 +336,20 @@ function App() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">
+            <h3 className="whiskey-title text-lg font-medium text-[#be6d0f] mb-1">
               No Better Deals Found
             </h3>
-            <p className="text-sm text-gray-500 text-center">
+            <p className="whiskey-text text-sm text-[#8e510b] text-center">
               We couldn't find any better prices on BAXUS for this item.
             </p>
           </div>
         )}
 
         {!loading && !error && matches.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-gray-900">
-                Found {matches.length} Better Deals
-              </h2>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                  />
-                </svg>
-                <span>Sorted by best savings</span>
-              </div>
-            </div>
-            {matches.map((match, index) => (
+          <div className="container space-y-4">
+      {matches.map((match, index) => (
               <PriceComparison key={index} bottle={match} />
-            ))}
+      ))}
           </div>
         )}
       </div>

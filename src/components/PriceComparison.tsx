@@ -1,6 +1,8 @@
 // import { BottleProps } from "../utils/types";
 import { useState } from "react";
 import { Button } from "./ui/button";
+import { WiStars } from "react-icons/wi";
+// import { Button } from "./ui/button";
 
 const formatPrice = (value: number, currency: string = "$") => {
   return `${currency}${value.toLocaleString(undefined, {
@@ -22,112 +24,111 @@ const PriceComparison = ({ bottle }: any) => {
     100
   ).toFixed(1);
   const isNegative = !bottle.isSoldOut && savings < 0;
-
   return (
-    <div className="flex flex-col bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 mb-4 border border-gray-100">
-      <div className="flex items-start gap-4">
-        <div className="relative w-20 h-24 overflow-hidden rounded-lg flex-shrink-0">
-          {isLoading && (
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse" />
-          )}
-          {bottle._source.animationUrl ? (
-            <video
-              src={bottle._source.animationUrl}
-              className={`absolute inset-0 w-full h-full object-cover ${
-                isLoading ? "hidden" : "block"
-              }`}
-              autoPlay
-              loop
-              muted
-              playsInline
-              onLoadedData={() => setIsLoading(false)}
-            />
-          ) : (
-            <img
-              src={bottle._source.imageUrl || "/vite.svg"}
-              alt={bottle._source.name}
-              className={`absolute inset-0 w-full h-full object-cover ${
-                isLoading ? "hidden" : "block"
-              }`}
-              onLoad={() => setIsLoading(false)}
-            />
-          )}
-        </div>
-        <div className="flex-1 min-w-0 p-3">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2 line-clamp-2">
-            {bottle._source.name}
-          </h2>
-
-          <div className="space-y-2">
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm text-gray-500">Current site price:</span>
-              {bottle.isSoldOut ? (
-                <span className="text-lg font-bold text-red-600">Sold Out</span>
-              ) : (
-                <span className="text-lg font-bold text-gray-900">
-                  {formatPrice(bottle.scrappedPrice, bottle.scrappedCurrency)}
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm text-gray-500">BAXUS Price:</span>
-              <span className="text-lg font-bold text-green-600">
-                {formatPrice(bottle._source.price)}
-              </span>
-            </div>
-
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm text-gray-500">You Save:</span>
-              <span
-                className={`text-lg font-bold ${
-                  isNegative ? "text-red-600" : "text-green-600"
-                }`}
-              >
-                {isNegative
-                  ? `-${formatPrice(Math.abs(savings))}`
-                  : `${formatPrice(savings)}`}
-                ({isNegative ? "-" : ""}
-                {Math.abs(Number(savingsPercentage))}%)
-              </span>
-              {isNegative && (
-                <span className="ml-2 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-                  External price is lower
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex justify-between items-center">
-        <div className="flex items-center gap-2">
+    <div className="comparison-cont flex flex-col bg-white/5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 mb-4 mx-4 px-5 py-4 border border-[#be6d0f]/20">
+      
+      <div className="flex items-center justify-end">
           <div
-            className={`px-3 py-1 rounded-full ${
-              isNegative ? "bg-red-50" : "bg-green-50"
+            className={`px-4 py-1 rounded-full flex justify-end items-center indicator ${
+              isNegative ? "bg-red-50" : "bg-[#be6d0f]/10"
             }`}
           >
             <span
-              className={`text-sm font-medium ${
-                isNegative ? "text-red-700" : "text-green-700"
+              className={`whiskey-text text-xs font-medium ${
+                isNegative ? "text-red-700" : "text-[#be6d0f] px-4"
               }`}
             >
               {isNegative ? "No Savings" : `Save ${savingsPercentage}%`}
             </span>
           </div>
         </div>
+        
+      <div className="flex justify-between items-start">
+        <div className="flex items-start gap-4">
+          <div className="relative w-20 h-24 overflow-hidden rounded-xl flex-shrink-0 bg-[#be6d0f]/5">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-[#be6d0f] border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {bottle._source.animationUrl ? (
+              <video
+                src={bottle._source.animationUrl}
+                className={`absolute inset-0 w-full h-full object-cover ${
+                  isLoading ? "hidden" : "block"
+                }`}
+                autoPlay
+                loop
+                muted
+                playsInline
+                onLoadedData={() => setIsLoading(false)}
+              />
+            ) : (
+              <img
+                src={bottle._source.imageUrl || "/vite.svg"}
+                alt={bottle._source.name}
+                className={`absolute inset-0 w-full h-full object-cover ${
+                  isLoading ? "hidden" : "block"
+                }`}
+                onLoad={() => setIsLoading(false)}
+              />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="whiskey-title text-2xl font-semibold mb-2 line-clamp-2">
+              {bottle._source.name}
+            </h2>
 
+            <div className="space-y-2">
+              <div className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="whiskey-text text-sm text-[#8e510b]">Current site price:</span>
+                {bottle.isSoldOut ? (
+                  <span className="whiskey-text text-base font-medium text-[#be6d0f]/70 tracking-wider uppercase">
+                    Sold Out
+                  </span>
+                ) : (
+                  <span className="whiskey-text text-base font-bold text-[#be6d0f]">
+                    {formatPrice(bottle.scrappedPrice, bottle.scrappedCurrency)}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="whiskey-text text-sm text-[#8e510b]">BAXUS Price:</span>
+                <span className="whiskey-text text-base font-bold text-[#be6d0f]">
+                  {formatPrice(bottle._source.price)}
+                </span>
+              </div>
+
+              <div className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="whiskey-text text-sm text-[#8e510b]">You Save:</span>
+                <span
+                  className={`whiskey-text text-base font-bold ${
+                    isNegative ? "text-red-600" : "text-[#be6d0f]"
+                  }`}
+                >
+                  {isNegative
+                    ? `-${formatPrice(Math.abs(savings))}`
+                    : `${formatPrice(savings)}`}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+  
+      </div>
+
+      <div className="mt-4 flex justify-end">
         <a
           href={`https://baxus.co/asset/${bottle._source.id}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-400  rounded-full shadow-md hover:from-blue-700 hover:to-blue-500 transition-all duration-200 text-base font-semibold gap-2 mt-2"
+          className="inline-flex items-center justify-center px-4 py-1.5 bg-[#be6d0f] text-white rounded-full shadow hover:bg-[#8e510b] transition-all duration-200 text-sm font-medium gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#be6d0f]/50"
         >
-          <Button className="hidden md:flex">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M12.293 2.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-8.5 8.5a1 1 0 01-.325.217l-4.5 2a1 1 0 01-1.316-1.316l2-4.5a1 1 0 01.217-.325l8.5-8.5zM15 7l-2-2" />
-            </svg>
+          <Button className="inline-flex items-center px-4 bg-transparent text-white font-bold rounded-full hover:bg-transparent transition-all duration-200">
             View on BAXUS
+            <WiStars className="w-4 h-4 ml-1" />
           </Button>
         </a>
       </div>
